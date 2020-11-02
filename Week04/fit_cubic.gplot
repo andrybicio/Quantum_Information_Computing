@@ -1,0 +1,12 @@
+#gnuplot -e "datafile='${data}'; outputname='${output}'" fit_cubic.gplot
+
+set xlabel "Matrix size"
+set ylabel "Time [s]"
+set xrange [0:2100]
+
+cubic(x) = a*x**3 + b*x**2 + c*x + d
+fit cubic(x) datafile using 1:2 via a,b,c,d 
+
+set output outputname
+set term png size 1024, 720
+plot cubic(x) title 'Cubic fit',  datafile using 1:2 title datafile lw 2

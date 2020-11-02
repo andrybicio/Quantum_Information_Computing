@@ -1,0 +1,14 @@
+set logscale y
+set xlabel "Matrix size"
+set ylabel "Time [s]"
+set xrange [0:*]
+array data[3]
+data[1] = "definition.dat"
+data[2] = "transposed.dat"
+data[3] = "intrinsic.dat"
+plot for [i=1:3] data[i] using 1:2 title data[i] with linespoints lw 2
+set key right bottom
+set term png size 1024, 720
+set output "times.png"
+replot
+set term x11
