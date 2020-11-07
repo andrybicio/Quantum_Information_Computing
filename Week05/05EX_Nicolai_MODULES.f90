@@ -747,6 +747,289 @@ CONTAINS
     
 END MODULE 
 
+MODULE HISTOGRAM_MODULE
+
+   !Implementation of a new type: HISTOGRAM
+   TYPE HISTOGRAM
+       !"Structural" variables
+       REAL*8 :: upper, lower
+       INTEGER :: n_bins 
+       REAL*8,  DIMENSION(:), ALLOCATABLE  :: edges, bins
+       !Following values have to be filled
+       REAL*8,  DIMENSION(:), ALLOCATABLE  :: densities
+       REAL*8                              :: bin_width
+       INTEGER, DIMENSION(:), ALLOCATABLE  :: counts
+   END TYPE HISTOGRAM 
+
+CONTAINS
+
+FUNCTION INIT_HIST(lower_bound, upper_bound, n_bins) RESULT(hist)
+   IMPLICIT NONE
+   
+   INTEGER, INTENT(IN) :: n_bins
+   REAL*8, INTENT(IN)  :: lower_bound, upper_bound
+
+   TYPE(HISTOGRAM) :: hist
+   INTEGER :: ii
+   REAL*8  :: ii_double
+   
+   ALLOCATE(hist%edges(n_bins+1))
+   ALLOCATE(hist%bins(n_bins))
+   ALLOCATE(hist%densities(n_bins))
+   ALLOCATE(hist%counts(n_bins))
+   
+   hist%n_bins = n_bins
+   hist%upper  = upper_bound
+   hist%lower  = lower_bound
+   hist%bin_width = (upper_bound-lower_bound)/n_bins
+   
+   !Trust me, it's needed....
+   ii_double = 0d0
+   !Compute the edges and the center of each bin
+   DO ii = 0, n_bins - 1
+      hist%edges(ii+1) = (lower_bound + ii_double*hist%bin_width)
+      hist%bins(ii+1)  = (lower_bound + hist%bin_width*( 5d-1 + ii_double ))
+      ii_double = ii_double + 1d0
+   END DO
+      hist%edges(n_bins + 1 ) = upper_bound
+   RETURN
+   
+   DO ii = 1, n_bins
+      hist%counts(ii)    = 0
+      hist%densities(ii) = 0d0
+   END DO
+   
+END FUNCTION INIT_HIST
+
+FUNCTION COPY_EMPTY_HIST(hist_to_be_copied) RESULT (new_hist)
+   IMPLICIT NONE
+   
+   TYPE(HISTOGRAM), INTENT(IN) :: hist_to_be_copied
+   TYPE(HISTOGRAM) :: new_hist
+   
+   INTEGER :: ii
+   
+   new_hist = INIT_HIST(hist_to_be_copied%lower, hist_to_be_copied%upper, &
+                      & hist_to_be_copied%n_bins)
+                      
+   DO ii = 1, new_hist%n_bins
+      new_hist%counts(ii)    = 0
+      new_hist%densities(ii) = 0d0
+   END DO
+   
+END FUNCTION
+
+SUBROUTINE FILL_HIST(hist, values)
+   IMPLICIT NONE
+   
+   !Input values 
+   TYPE(HISTOGRAM), INTENT(INOUT) :: hist
+   REAL*8, DIMENSION(:), ALLOCATABLE, INTENT(IN) :: values
+   
+   !Values to be copied
+   INTEGER, DIMENSION(:), ALLOCATABLE :: counts
+   REAL*8,  DIMENSION(:), ALLOCATABLE :: densities, edges
+   
+   !Temp variables
+   REAL*8 :: bin_width, norm_factor
+   LOGICAL :: DEBUG = .FALSE.
+   INTEGER :: nbins, bin_selector, ii_temp, ii
+   
+   !Copy temporarily all variables
+   nbins     = hist%n_bins
+   bin_width = hist%bin_width
+   ALLOCATE(edges(nbins+1))
+   ALLOCATE(counts(nbins))
+   ALLOCATE(densities(nbins))
+   edges = hist%edges
+   
+   !Initialize the count array to zero!
+   DO ii = 1, SIZE(counts)
+      counts(ii) = 0
+   END DO
+   
+   !it is the index for the values!
+   ii_temp = 1
+   
+   !Count how many values fall inside each bin, array of values is already sorted
+   DO bin_selector = 2, SIZE(edges)
+   IF (DEBUG) THEN
+      PRINT*, bin_selector, SIZE(edges)
+   END IF
+      DO WHILE ((values(ii_temp).LE.edges(bin_selector)).AND.(ii_temp.LE.SIZE(values)))
+         IF (DEBUG) THEN
+            PRINT*, "FIRST CONDITION", values(ii_temp), edges(bin_selector)
+            PRINT*, "SECOND CONDITION", ii_temp, SIZE(values)
+         END IF
+         counts(bin_selector - 1) = counts(bin_selector - 1) + 1
+         ii_temp = ii_temp + 1
+      END DO
+   END DO
+      
+   !Compute the normalization factor
+   norm_factor = SUM(counts)*bin_width
+   
+!DO NOT CHECK, SINCE IF SOME VALUES FALL OUTSIDE THE RANGE OF HIST IT WILL GIVE ERROR
+!   IF (SUM(counts).NE.SIZE(values)) THEN
+!     IF (.TRUE.) THEN
+!        PRINT*, "Tot Counts", SUM(counts)
+!     END IF
+!       PRINT*, "Error in Histogram function"
+!       PRINT*, values
+!       CALL EXIT(3)
+!   END IF
+      
+   !Rescale the densities array
+   DO ii = 1, nbins
+      densities(ii) = counts(ii)/norm_factor
+       IF (DEBUG) THEN
+         PRINT*, ii, "   ", nbins
+       END IF
+   END DO
+   
+   hist%densities = densities
+   hist%counts    = counts
+   
+   DEALLOCATE(edges)
+   DEALLOCATE(counts)
+   DEALLOCATE(densities)
+       
+END SUBROUTINE
+
+FUNCTION ADD_HISTOGRAMS(hist1, hist2) RESULT(sum_hist)
+   IMPLICIT NONE
+
+   !Input values 
+   TYPE(HISTOGRAM), INTENT(IN) :: hist1, hist2
+   
+   !Resulting hist
+   TYPE(HISTOGRAM) :: sum_hist
+   
+   !Other variables
+   REAL*8  :: norm_factor
+     
+   !Should be a check whether bins/edges are equal, skipping due to lack of time
+   INTEGER :: n_bins, ii
+   !LOGICAL :: DEBUG
+   
+   n_bins = hist1%n_bins
+   sum_hist = COPY_EMPTY_HIST(hist1)
+   
+   !Sum the counts
+   DO ii = 1, n_bins
+      sum_hist%counts(ii) = hist1%counts(ii) + hist2%counts(ii)
+   END DO
+   
+   !Here we do not need to multiply by the bin width! We have already rescaled...
+   norm_factor = SUM(sum_hist%counts)
+
+   DO ii = 1, n_bins
+      sum_hist%densities(ii) = sum_hist%counts(ii)/norm_factor
+   END DO
+   
+!   PRINT*, "AREA IS", SUM(sum_hist%densities)
+   
+END FUNCTION
+
+FUNCTION ADD_HISTOGRAMS_ARRAY(hist_array) RESULT(sum_hist)
+   IMPLICIT NONE
+
+   !Input values 
+   TYPE(HISTOGRAM), DIMENSION(:), INTENT(IN) :: hist_array
+   
+   !Resulting hist
+   TYPE(HISTOGRAM) :: sum_hist
+   
+   !Other variables
+   REAL*8  :: norm_factor
+     
+   !Should be a check whether bins/edges are equal, skipping due to lack of time
+   INTEGER :: n_bins, ii, jj, number_histograms, temp_sum
+   !LOGICAL :: DEBUG
+   
+   
+   n_bins = hist_array(1)%n_bins
+   sum_hist = COPY_EMPTY_HIST(hist_array(1))
+   number_histograms = SIZE(hist_array)
+   
+   !Sum the counts
+   DO ii = 1, n_bins
+      temp_sum = 0
+      DO jj = 1, number_histograms
+        temp_sum = temp_sum + hist_array(jj)%counts(ii)
+      END DO
+      sum_hist%counts(ii) = temp_sum
+   END DO
+   
+   !Here we do not need to multiply by the bin width! We have already rescaled...
+   norm_factor = SUM(sum_hist%counts)
+
+   DO ii = 1, n_bins
+      sum_hist%densities(ii) = sum_hist%counts(ii)/norm_factor
+   END DO
+   
+   !PRINT*, "Sum of columns is:", SUM(sum_hist%densities)
+   
+END FUNCTION
+
+SUBROUTINE OBTAIN_PDF(hist)
+IMPLICIT NONE
+
+   TYPE(HISTOGRAM), INTENT(INOUT) :: hist
+
+   !Other variables
+   REAL*8  :: norm_factor
+   INTEGER :: ii
+
+   norm_factor = SUM(hist%counts*hist%bin_width)
+
+   DO ii = 1, hist%n_bins
+      hist%densities(ii) = hist%counts(ii)/norm_factor
+   END DO
+   
+   !PRINT*, "Area is", SUM(hist%densities*hist%bin_width)
+END SUBROUTINE
+
+FUNCTION GET_EDGES(lower, upper, n_bins) RESULT (edges)
+   IMPLICIT NONE
+   
+   REAL*8, INTENT(IN)  :: lower, upper
+   INTEGER, INTENT(IN) :: n_bins
+   REAL*8, DIMENSION(:), ALLOCATABLE :: edges
+   
+   INTEGER :: ii
+   
+   IF(.not.ALLOCATED(edges)) THEN
+      ALLOCATE(edges(n_bins + 1))
+   END IF
+   
+   DO ii = 0, n_bins
+      edges(ii+1) = lower + ii*upper
+   END DO
+   RETURN
+   
+END FUNCTION
+
+SUBROUTINE PRINT_HIST_TO_FILE( hist ,filename)
+   IMPLICIT NONE
+
+   TYPE(HISTOGRAM), INTENT(IN) :: hist
+   CHARACTER(*), INTENT(IN) :: filename
+   
+   INTEGER :: number_lines, ii
+   
+   number_lines = hist%n_bins
+   
+   OPEN(25, file = filename , status = 'unknown')
+   DO ii = 1, number_lines
+      WRITE(25,*) hist%bins(ii), hist%densities(ii)
+   END DO
+   CLOSE(25) 
+
+END SUBROUTINE
+
+
+END MODULE 
 
 
 

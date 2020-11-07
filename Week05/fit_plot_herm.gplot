@@ -1,0 +1,18 @@
+#gnuplot -e "datafile='${data}'; outputname='${output}'" fit_plot.gplot
+#set print "additional_numbers.txt" append
+
+f(x) = a*x**alpha*exp(-b*x**beta)
+g(x) = 32/(3.14**2)*x**2*exp(-4/3.14*x**2)
+
+fit f(x) datafile using 1:2 via a,b,alpha,beta 
+
+set output outputname
+set term png size 1024, 720
+plot f(x) title 'Best MSE fit' lw 3,  datafile using 1:2 title "data" lw 2, g(x) title 'Theoretical'
+
+set print "results_fit.csv" append
+
+print size,",", samples,",", type_matr,",", window,",", a,",", b,",", alpha,",", beta
+
+#set table "results_fit.csv"
+

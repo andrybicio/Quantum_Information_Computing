@@ -13,7 +13,7 @@ os.system('rm -f *.png*')
 os.system('rm -f fit.log')
 os.system('rm -f results_fit.csv')
 
-matrix_size = '1250'
+matrix_size = '1500'
 number_samples = '200'
 type_of_matrix = ['H','D']
 aver_parameter = ['0', '1', str(int(int(matrix_size)/100)), str(int(int(matrix_size)/50)), str(int(int(matrix_size)/10))]
@@ -33,15 +33,24 @@ for matr_type in type_of_matrix:
 #remove the extension and append the "png" for the image
 filenames_png = [i[:-3]+"png" for i in filenames_data]
 
-parameters_strings = [] 
+parameters_strings = []
+script_gnuplot_files = [' fit_plot_herm.gplot',' fit_plot_diag.gplot']
 
 for matr_type in type_of_matrix:
     for aver in aver_parameter:
         parameters_strings.append("size='"+matrix_size+"';samples='"+number_samples+"';type_matr='"+matr_type+"';window='"+aver+"'")
 
-commands_gnuplot_fit_print = ["gnuplot -e \"datafile='"+
-                              data_in+"';"+param+";outputname='"+image_out+"\'\" fit_plot.gplot" 
+temp_commands_gnuplot = ["gnuplot -e \"datafile='"+
+                              data_in+"';"+param+";outputname='"+image_out+"\'\"" 
                               for data_in, image_out, param in zip(filenames_data, filenames_png, parameters_strings) ]
-                             
-for command in commands_gnuplot_fit_print:
+
+commands_gnuplot = []
+
+for matr_type, script_gnuplot in zip(type_of_matrix, script_gnuplot_files):
+    for command in temp_commands_gnuplot:
+        if (matr_type in command): 
+            commands_gnuplot.append(command+script_gnuplot)
+            
+
+for command in commands_gnuplot:
     sub.call([command], shell= True)
