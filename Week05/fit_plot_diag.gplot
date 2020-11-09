@@ -4,6 +4,9 @@
 f(x) = a*x**alpha*exp(-b*x**beta)
 g(x) = exp(-x)
 
+set xlabel "s_i"
+set ylabel "P(s)"
+
 fit f(x) datafile using 1:2 via a,b,alpha,beta 
 
 set output outputname

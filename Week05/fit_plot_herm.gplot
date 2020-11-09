@@ -6,6 +6,11 @@ g(x) = 32/(3.14**2)*x**2*exp(-4/3.14*x**2)
 
 fit f(x) datafile using 1:2 via a,b,alpha,beta 
 
+
+set xlabel "s_i"
+set ylabel "P(s)"
+
+
 set output outputname
 set term png size 1024, 720
 plot f(x) title 'Best MSE fit' lw 3,  datafile using 1:2 title "data" lw 2, g(x) title 'Theoretical'
